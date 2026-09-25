@@ -94,10 +94,71 @@ let HT_NEW_IMG='';
 function zoomImg(src){if(!src)return;let d=document.createElement('div');d.className='imgZoom';d.onclick=()=>d.remove();d.innerHTML='<img src="'+src+'">';document.body.appendChild(d)}
 function compressImg(file,cb){let rd=new FileReader();rd.onload=e=>{let im=new Image();im.onload=()=>{let max=900,s=Math.min(1,max/Math.max(im.width,im.height)),w=Math.round(im.width*s),h=Math.round(im.height*s),cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(im,0,0,w,h);let q=.72,out=cv.toDataURL('image/jpeg',q);while(out.length>135000&&q>.28){q-=.08;out=cv.toDataURL('image/jpeg',q)}cb(out)};im.src=e.target.result};rd.readAsDataURL(file)}
 function pickGoodImg(inp){let f=inp.files&&inp.files[0];if(!f)return;compressImg(f,x=>{HT_NEW_IMG=x;document.getElementById('goodPreview').src=x;document.getElementById('goodPreview').style.display='block';document.getElementById('goodNoPic').style.display='none'})}
-function addGoodForm(pid,name){HT_NEW_IMG='';let en=name.replace(/'/g,"\\'");document.getElementById('main').innerHTML='<div class="title">Thêm hàng hóa · '+name+'</div><div class="card form"><label>Hình sản phẩm</label><div style="display:flex;align-items:center;gap:9px"><div id="goodNoPic" class="thumbEmpty" style="width:72px;height:72px">📦</div><img id="goodPreview" class="addPic" style="display:none"><label class="btn iconBtn" title="Chụp ảnh">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="pickGoodImg(this)"></label><label class="btn iconBtn" title="Chọn ảnh">🖼️<input type="file" accept="image/*" style="display:none" onchange="pickGoodImg(this)"></label></div><label>Tên hàng</label><input id="agn" placeholder="Tên hàng"><label>Đơn vị tính</label><input id="agu" value="Cái"><label>Giá vốn</label><input id="agc" type="number" inputmode="numeric" value="0"><button class="btn blue iconBtn" style="margin-top:12px" title="Lưu" onclick="saveNewGood(\''+pid+'\',\''+en+'\')">💾</button></div><button class="btn iconBtn" title="Trở lại" onclick="liveGoods(\''+pid+'\',\''+en+'\')">←</button>'}
-async function saveNewGood(pid,name){let n=document.getElementById('agn').value.trim(),u=document.getElementById('agu').value.trim()||'Cái',g=Number(document.getElementById('agc').value)||0;if(!n)return alert('Nhập tên hàng');let {data,error}=await SB.rpc('add_pair_product_image',{p_device:device(),p_partnership:pid,p_name:n,p_unit:u,p_cost:g,p_image:HT_NEW_IMG||null});if(error||!data||['NO_ACCESS','IMAGE_TOO_LARGE'].includes(data))return alert(error?error.message:data);liveGoods(pid,name)}
+function toggleSizeBox(){
+  const on=document.getElementById('agHasSize')?.checked;
+  const box=document.getElementById('agSizeBox');
+  if(box) box.style.display=on?'block':'none';
+}
+function addSizeRow(){
+  const box=document.getElementById('agSizeRows');
+  if(!box)return;
+  const d=document.createElement('div');
+  d.className='sizeRow';
+  d.style.cssText='display:grid;grid-template-columns:1fr 1fr 42px;gap:8px;margin-top:8px';
+  d.innerHTML='<input class="agsn" placeholder="Size, ví dụ M"><input class="agsp" type="number" inputmode="numeric" min="0" placeholder="Giá"><button type="button" class="btn iconBtn" onclick="this.parentElement.remove()">×</button>';
+  box.appendChild(d);
+}
+function addGoodForm(pid,name){
+  HT_NEW_IMG='';
+  let en=name.replace(/'/g,"\\'");
+  document.getElementById('main').innerHTML=
+  '<div class="title">Thêm hàng hóa · '+name+'</div>'+
+  '<div class="card form">'+
+  '<label>Hình sản phẩm</label><div style="display:flex;align-items:center;gap:9px"><div id="goodNoPic" class="thumbEmpty" style="width:72px;height:72px">📦</div><img id="goodPreview" class="addPic" style="display:none"><label class="btn iconBtn" title="Chụp ảnh">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="pickGoodImg(this)"></label><label class="btn iconBtn" title="Chọn ảnh">🖼️<input type="file" accept="image/*" style="display:none" onchange="pickGoodImg(this)"></label></div>'+
+  '<label>Tên sản phẩm</label><input id="agn" placeholder="Tên sản phẩm">'+
+  '<label>Đơn vị</label><input id="agu" value="Cái">'+
+  '<label>Giá</label><input id="agc" type="number" inputmode="numeric" value="0">'+
+  '<label style="display:flex;align-items:center;gap:10px;margin-top:14px"><input id="agHasSize" type="checkbox" onchange="toggleSizeBox()" style="width:auto"> Có size</label>'+
+  '<div id="agSizeBox" style="display:none;margin-top:8px;padding:10px;border:1px solid #e2e5e9;border-radius:12px"><div class="muted">Mỗi size nhập tên size và giá riêng.</div><div id="agSizeRows"></div><button type="button" class="btn" style="margin-top:8px" onclick="addSizeRow()">＋ Thêm size</button></div>'+
+  '<button class="btn blue iconBtn" style="margin-top:12px" title="Lưu" onclick="saveNewGood(\''+pid+'\',\''+en+'\')">💾</button></div>'+
+  '<button class="btn iconBtn" title="Trở lại" onclick="liveGoods(\''+pid+'\',\''+en+'\')">←</button>';
+}
+async function saveNewGood(pid,name){
+  let n=document.getElementById('agn').value.trim(),
+      u=document.getElementById('agu').value.trim()||'Cái',
+      g=Number(document.getElementById('agc').value)||0,
+      hasSize=!!document.getElementById('agHasSize')?.checked;
+  if(!n)return alert('Nhập tên sản phẩm');
+  let sizes=[];
+  if(hasSize){
+    sizes=[...document.querySelectorAll('.sizeRow')].map(r=>({
+      size_name:(r.querySelector('.agsn')?.value||'').trim(),
+      cost:Number(r.querySelector('.agsp')?.value||0)
+    })).filter(x=>x.size_name);
+    if(!sizes.length)return alert('Nhập ít nhất 1 size');
+  }
+  let {data,error}=await SB.rpc('add_pair_product_image',{p_device:device(),p_partnership:pid,p_name:n,p_unit:u,p_cost:g,p_image:HT_NEW_IMG||null});
+  if(error||!data||['NO_ACCESS','IMAGE_TOO_LARGE'].includes(data))return alert(error?error.message:data);
+  if(hasSize){
+    let r=await SB.rpc('set_product_sizes',{p_device:device(),p_product:data,p_sizes:sizes});
+    if(r.error||r.data!=='OK')return alert(r.error?r.error.message:r.data);
+  }
+  liveGoods(pid,name);
+}
 async function setGoodImg(id,pid,name,inp){let f=inp.files&&inp.files[0];if(!f)return;compressImg(f,async img=>{let {data,error}=await SB.rpc('set_pair_product_image',{p_device:device(),p_product:id,p_image:img});if(error||data!=='OK')return alert(error?error.message:data);liveGoods(pid,name)})}
-async function liveGoods(pid,name){document.getElementById('head').innerHTML='<div class="modalHead"><b>SỔ TAY HỢP TÁC</b><button class="xbtn" onclick="home()">×</button></div>';let {data,error}=await SB.rpc('list_pair_products',{p_device:device(),p_partnership:pid});if(error)return alert(error.message);let en=name.replace(/'/g,"\\'"),rows=(data||[]).map(x=>'<tr class="goodsItem" data-find="'+(String(x.code||'')+' '+String(x.name||'')).toLowerCase().replace(/"/g,'&quot;')+'"><td>'+(x.image_data?'<img class="thumb" src="'+x.image_data+'" onclick="zoomImg(this.src)">':'<div class="thumbEmpty">📦</div>')+'</td><td>'+x.code+'</td><td>'+x.name+'<div class="muted">'+(x.creator_name?'Tạo bởi '+x.creator_name:'')+'</div></td><td>'+x.unit+'</td><td><b>'+m(Number(x.cost))+'</b></td><td>'+(x.can_edit?'<button class="btn iconBtn" title="Sửa" onclick="editGood(\''+x.id+'\',\''+String(x.name).replace(/'/g,"\\'")+'\',\''+String(x.unit).replace(/'/g,"\\'")+'\','+Number(x.cost)+',\''+pid+'\',\''+en+'\')">✏️</button><label class="btn iconBtn" title="Đổi ảnh">🖼️<input type="file" accept="image/*" style="display:none" onchange="setGoodImg(\''+x.id+'\',\''+pid+'\',\''+en+'\',this)"></label>':'')+'</td></tr>').join('');document.getElementById('main').innerHTML='<div class="title">Hàng hóa · '+name+'</div><button class="btn blue iconBtn" title="Thêm hàng hóa" onclick="addGoodForm(\''+pid+'\',\''+en+'\')">＋</button><div class="orderSearch" style="margin-top:10px"><input id="goodsFind" placeholder="🔍 Tìm mã hoặc tên hàng..." oninput="filterGoods()"></div><div class="card" style="margin-top:0;overflow:auto"><table class="table"><tr><th>Ảnh</th><th>Mã</th><th>Tên</th><th>ĐVT</th><th>Giá vốn</th><th></th></tr>'+rows+'</table></div><button class="btn iconBtn" title="Trở lại" onclick="openLiveP(\''+pid+'\',\''+en+'\')">←</button>'}
+async function liveGoods(pid,name){
+  document.getElementById('head').innerHTML='<div class="modalHead"><b>SỔ TAY HỢP TÁC</b><button class="xbtn" onclick="home()">×</button></div>';
+  let {data,error}=await SB.rpc('list_pair_products_v2',{p_device:device(),p_partnership:pid});
+  if(error)return alert(error.message);
+  let en=name.replace(/'/g,"\\'"),
+      rows=(data||[]).map(x=>{
+        let sz=x.has_size&&Array.isArray(x.sizes)&&x.sizes.length
+          ?'<div class="muted">Size: '+x.sizes.map(s=>s.size_name+' '+m(Number(s.cost))).join(' · ')+'</div>'
+          :'';
+        return '<tr class="goodsItem" data-find="'+(String(x.code||'')+' '+String(x.name||'')).toLowerCase().replace(/"/g,'&quot;')+'"><td>'+(x.image_data?'<img class="thumb" src="'+x.image_data+'" onclick="zoomImg(this.src)">':'<div class="thumbEmpty">📦</div>')+'</td><td>'+x.code+'</td><td>'+x.name+sz+'<div class="muted">'+(x.creator_name?'Tạo bởi '+x.creator_name:'')+'</div></td><td>'+x.unit+'</td><td><b>'+(x.has_size?'Theo size':m(Number(x.cost)))+'</b></td><td>'+(x.can_edit?'<button class="btn iconBtn" title="Sửa" onclick="editGood(\''+x.id+'\',\''+String(x.name).replace(/'/g,"\\'")+'\',\''+String(x.unit).replace(/'/g,"\\'")+'\','+Number(x.cost)+',\''+pid+'\',\''+en+'\')">✏️</button><label class="btn iconBtn" title="Đổi ảnh">🖼️<input type="file" accept="image/*" style="display:none" onchange="setGoodImg(\''+x.id+'\',\''+pid+'\',\''+en+'\',this)"></label>':'')+'</td></tr>';
+      }).join('');
+  document.getElementById('main').innerHTML='<div class="title">Hàng hóa · '+name+'</div><button class="btn blue iconBtn" title="Thêm hàng hóa" onclick="addGoodForm(\''+pid+'\',\''+en+'\')">＋</button><div class="orderSearch" style="margin-top:10px"><input id="goodsFind" placeholder="🔍 Tìm mã hoặc tên hàng..." oninput="filterGoods()"></div><div class="card" style="margin-top:0;overflow:auto"><table class="table"><tr><th>Ảnh</th><th>Mã</th><th>Tên</th><th>ĐVT</th><th>Giá</th><th></th></tr>'+rows+'</table></div><button class="btn iconBtn" title="Trở lại" onclick="openLiveP(\''+pid+'\',\''+en+'\')">←</button>';
+}
 function filterGoods(){let q=(document.getElementById('goodsFind')?.value||'').trim().toLowerCase();document.querySelectorAll('.goodsItem').forEach(r=>r.style.display=!q||r.dataset.find.includes(q)?'table-row':'none')}
 async function editCost(productId,oldCost,pid,name){let v=prompt('Giá vốn mới',oldCost);if(v===null)return;let n=Number(v);if(isNaN(n)||n<0)return alert('Giá không hợp lệ');let {data,error}=await SB.rpc('propose_price_change',{p_device:device(),p_product:productId,p_new_cost:n});if(error||data!=='OK')return alert(error?error.message:data);alert('Đã sửa giá vốn');liveGoods(pid,name)}
 async function editGood(id,oldName,oldUnit,oldCost,pid,partner){let n=prompt('Tên hàng',oldName);if(n===null||!n.trim())return;let u=prompt('Đơn vị tính',oldUnit)||'Cái';let v=prompt('Giá vốn',oldCost);if(v===null)return;let cost=Number(v);if(isNaN(cost)||cost<0)return alert('Giá không hợp lệ');let {data,error}=await SB.rpc('edit_pair_product',{p_device:device(),p_product:id,p_name:n,p_unit:u,p_cost:cost});if(error||data!=='OK')return alert(error?error.message:data);liveGoods(pid,partner)}
@@ -105,8 +166,34 @@ async function opening(pid,name){return paymentHub(pid,name)}
 async function saveOpening(pid,name){let a=moneyVal(document.getElementById('obamt').value);let d=document.getElementById('obdir').value;let dt=document.getElementById('obdate').value;if(isNaN(a)||a<0||!dt)return alert('Kiểm tra số tiền và ngày');let {data,error}=await SB.rpc('set_opening_balance',{p_device:device(),p_partnership:pid,p_direction:d,p_amount:a,p_date:dt});if(error||data!=='OK')return alert(error?error.message:data);alert('Đã lưu công nợ đầu kỳ');openLiveP(pid,name)}
 async function addLiveGood(pid,name){addGoodForm(pid,name)}
 function filterOrderGoods(){let q=(document.getElementById('orderFind')?.value||'').trim().toLowerCase();document.querySelectorAll('.orderItem').forEach(r=>r.style.display=!q||r.dataset.find.includes(q)?'flex':'none')}
-async function liveOrder(pid,name){document.getElementById('head').innerHTML='<div class="modalHead"><b>SỔ TAY HỢP TÁC</b><button class="xbtn" onclick="home()">×</button></div>';let {data,error}=await SB.rpc('list_pair_products',{p_device:device(),p_partnership:pid});if(error)return alert(error.message);let en=name.replace(/'/g,"\\'"),items=(data||[]).filter(x=>x.active!==false&&!x.can_edit);let rows=items.map(x=>'<div class="partner orderItem" data-find="'+(String(x.code)+' '+String(x.name)).toLowerCase().replace(/"/g,'&quot;')+'"><div><b>'+x.code+' · '+x.name+'</b><div class="muted">'+x.unit+' · '+m(Number(x.cost))+'</div></div><input class="oqty" data-id="'+x.id+'" type="number" min="0" value="0" style="width:72px"></div>').join('');document.getElementById('main').innerHTML='<div class="title">Đặt hàng · '+name+'</div><div class="orderSearch"><input id="orderFind" placeholder="🔍 Tìm mã hoặc tên hàng..." oninput="filterOrderGoods()"></div><div class="card">'+(rows||'<div class="muted">Chưa có hàng hóa để đặt</div>')+'</div>'+(items.length?'<button class="btn green" style="width:100%" onclick="sendLiveOrder(\''+pid+'\',\''+en+'\')">Gửi đơn hàng</button>':'')+'<button class="btn iconBtn" style="margin-top:8px" title="Trở lại" onclick="openLiveP(\''+pid+'\',\''+en+'\')">←</button>'}
-async function sendLiveOrder(pid,name){let items=[...document.querySelectorAll('.oqty')].map(i=>({product_id:i.dataset.id,qty:Number(i.value)})).filter(x=>x.qty>0);if(!items.length)return alert('Chọn số lượng cần đặt');let {data,error}=await SB.rpc('create_pair_order',{p_device:device(),p_partnership:pid,p_items:items});if(error||data!=='OK')return alert(error?error.message:data);alert('Đã gửi đơn · chờ '+name+' xác nhận');openLiveP(pid,name)}
+async function liveOrder(pid,name){
+  document.getElementById('head').innerHTML='<div class="modalHead"><b>SỔ TAY HỢP TÁC</b><button class="xbtn" onclick="home()">×</button></div>';
+  let {data,error}=await SB.rpc('list_pair_products_v2',{p_device:device(),p_partnership:pid});
+  if(error)return alert(error.message);
+  let en=name.replace(/'/g,"\\'"),items=(data||[]).filter(x=>x.active!==false&&!x.can_edit);
+  let rows=items.map(x=>{
+    let body='';
+    if(x.has_size&&Array.isArray(x.sizes)&&x.sizes.length){
+      body='<div style="width:100%;margin-top:8px">'+x.sizes.map(s=>'<div style="display:grid;grid-template-columns:1fr auto 72px;gap:8px;align-items:center;margin-top:6px"><span>Size <b>'+s.size_name+'</b></span><span>'+m(Number(s.cost))+'</span><input class="oqty" data-id="'+x.id+'" data-size="'+s.id+'" type="number" min="0" value="0" style="width:72px"></div>').join('')+'</div>';
+    }else{
+      body='<div style="display:flex;align-items:center;gap:10px"><span class="muted">'+x.unit+' · '+m(Number(x.cost))+'</span><input class="oqty" data-id="'+x.id+'" data-size="" type="number" min="0" value="0" style="width:72px"></div>';
+    }
+    return '<div class="card orderItem" data-find="'+(String(x.code)+' '+String(x.name)).toLowerCase().replace(/"/g,'&quot;')+'"><div style="display:flex;gap:10px;align-items:center">'+(x.image_data?'<img class="thumb" src="'+x.image_data+'" onclick="zoomImg(this.src)">':'<div class="thumbEmpty">📦</div>')+'<div><b>'+x.code+' · '+x.name+'</b><div class="muted">'+x.unit+'</div></div></div>'+body+'</div>';
+  }).join('');
+  document.getElementById('main').innerHTML='<div class="title">Đặt hàng · '+name+'</div><div class="orderSearch"><input id="orderFind" placeholder="🔍 Tìm mã hoặc tên hàng..." oninput="filterOrderGoods()"></div><div>'+ (rows||'<div class="card muted">Chưa có hàng hóa để đặt</div>') +'</div>'+(items.length?'<button class="btn green" style="width:100%" onclick="sendLiveOrder(\''+pid+'\',\''+en+'\')">Gửi đơn hàng</button>':'')+'<button class="btn iconBtn" style="margin-top:8px" title="Trở lại" onclick="openLiveP(\''+pid+'\',\''+en+'\')">←</button>';
+}
+async function sendLiveOrder(pid,name){
+  let items=[...document.querySelectorAll('.oqty')].map(i=>({
+    product_id:i.dataset.id,
+    size_id:i.dataset.size||null,
+    qty:Number(i.value)
+  })).filter(x=>x.qty>0);
+  if(!items.length)return alert('Chọn số lượng cần đặt');
+  let {data,error}=await SB.rpc('create_pair_order',{p_device:device(),p_partnership:pid,p_items:items});
+  if(error||data!=='OK')return alert(error?error.message:data);
+  alert('Đã gửi đơn · chờ '+name+' xác nhận');
+  openLiveP(pid,name);
+}
 function livePay(pid,name){document.getElementById('head').innerHTML='<div class="modalHead"><b>SỔ TAY HỢP TÁC</b><button class="xbtn" onclick="home()">×</button></div>';document.getElementById('main').innerHTML='<div class="title">Tôi trả '+name+'</div><div class="card form"><label>Số tiền</label><input id="lpamt" type="number" inputmode="numeric"><label>Hình thức</label><select id="lpm"><option value="cash">Tiền mặt</option><option value="bank">Chuyển khoản</option></select><button class="btn blue" style="width:100%;margin-top:12px" onclick="saveLivePay(\''+pid+'\',\''+name.replace(/'/g,"\\'")+'\')">Lưu · Chờ xác nhận</button></div><button class="btn" onclick="openLiveP(\''+pid+'\',\''+name.replace(/'/g,"\\'")+'\')">← Trở lại</button>'}
 async function saveLivePay(pid,name){let a=moneyVal(document.getElementById('lpamt').value);if(!a||a<=0)return alert('Nhập số tiền thanh toán');let {data,error}=await SB.rpc('create_pair_payment',{p_device:device(),p_partnership:pid,p_amount:a,p_method:document.getElementById('lpm').value});if(error||data!=='OK')return alert(error?error.message:data);alert('Đã báo thanh toán · chờ '+name+' xác nhận');paymentHub(pid,name)}
 async function openLiveP(pid,name){cur=pid;let [lr,cr]=await Promise.all([SB.rpc('get_partner_ledger',{p_device:device(),p_partnership:pid}),SB.rpc('get_pair_pending_counts',{p_device:device(),p_partnership:pid})]);if(lr.error||!lr.data||!lr.data.length)return alert('Không mở được sổ');let en=String(name).replace(/'/g,"\\'"),q=(cr.data&&cr.data[0])||{},badge=n=>Number(n)>0?'<span style="display:inline-block;background:#ef2b2d;color:white;border-radius:999px;padding:2px 8px;margin-left:7px;font-size:13px">'+n+'</span>':'';document.getElementById('head').innerHTML='<div class="brand"><button class="back" onclick="home()">←</button><div><h1>'+name+'</h1><small>Đối tác · Sổ hợp tác riêng</small></div></div>';document.getElementById('main').innerHTML='<div class="grid"><button class="btn green '+(q.order_pending?'pulse':'')+'" style="min-height:86px;font-size:18px" onclick="liveOrders(\''+pid+'\',\''+en+'\')">🛒 <b>Đơn hàng</b>'+badge(q.order_pending)+'</button><button class="btn" style="min-height:86px;font-size:18px" onclick="liveGoods(\''+pid+'\',\''+en+'\')">📦 <b>Hàng hóa</b></button><button class="btn blue '+(q.payment_pending?'pulse':'')+'" style="min-height:86px;font-size:18px" onclick="paymentHub(\''+pid+'\',\''+en+'\')">💵 <b>Tôi thanh toán</b>'+badge(q.payment_pending)+'</button><button class="btn green" style="min-height:86px;font-size:18px" onclick="liveOrder(\''+pid+'\',\''+en+'\')">⊕ <b>Đặt hàng mới</b></button></div><button class="btn" style="width:100%;min-height:76px;margin-top:14px;font-size:18px" onclick="orderHistory(\''+pid+'\',\''+en+'\')">🕘 <b>Lịch sử đơn hàng</b><br><span class="muted" style="font-size:13px">Xem tối đa 50 đơn gần nhất</span></button>'}
