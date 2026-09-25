@@ -145,42 +145,111 @@ async function saveNewGood(pid,name){
   }
   liveGoods(pid,name);
 }
+let GOODS_CACHE={};
 async function setGoodImg(id,pid,name,inp){let f=inp.files&&inp.files[0];if(!f)return;compressImg(f,async img=>{let {data,error}=await SB.rpc('set_pair_product_image',{p_device:device(),p_product:id,p_image:img});if(error||data!=='OK')return alert(error?error.message:data);liveGoods(pid,name)})}
 async function liveGoods(pid,name){
   document.getElementById('head').innerHTML='<div class="modalHead"><b>SỔ TAY HỢP TÁC</b><button class="xbtn" onclick="home()">×</button></div>';
   let {data,error}=await SB.rpc('list_pair_products_v2',{p_device:device(),p_partnership:pid});
   if(error)return alert(error.message);
+  GOODS_CACHE={};(data||[]).forEach(x=>GOODS_CACHE[x.id]=x);
   let en=name.replace(/'/g,"\\'"),
       rows=(data||[]).map(x=>{
         let sz=x.has_size&&Array.isArray(x.sizes)&&x.sizes.length
           ?'<div class="muted">Size: '+x.sizes.map(s=>s.size_name+' '+m(Number(s.cost))).join(' · ')+'</div>'
           :'';
-        return '<tr class="goodsItem" data-find="'+(String(x.code||'')+' '+String(x.name||'')).toLowerCase().replace(/"/g,'&quot;')+'"><td>'+(x.image_data?'<img class="thumb" src="'+x.image_data+'" onclick="zoomImg(this.src)">':'<div class="thumbEmpty">📦</div>')+'</td><td>'+x.code+'</td><td>'+x.name+sz+'<div class="muted">'+(x.creator_name?'Tạo bởi '+x.creator_name:'')+'</div></td><td>'+x.unit+'</td><td><b>'+(x.has_size?'Theo size':m(Number(x.cost)))+'</b></td><td>'+(x.can_edit?'<button class="btn iconBtn" title="Sửa" onclick="editGood(\''+x.id+'\',\''+String(x.name).replace(/'/g,"\\'")+'\',\''+String(x.unit).replace(/'/g,"\\'")+'\','+Number(x.cost)+',\''+pid+'\',\''+en+'\')">✏️</button><label class="btn iconBtn" title="Đổi ảnh">🖼️<input type="file" accept="image/*" style="display:none" onchange="setGoodImg(\''+x.id+'\',\''+pid+'\',\''+en+'\',this)"></label>':'')+'</td></tr>';
+        return '<tr class="goodsItem" data-find="'+(String(x.code||'')+' '+String(x.name||'')).toLowerCase().replace(/"/g,'&quot;')+'"><td>'+(x.image_data?'<img class="thumb" src="'+x.image_data+'" onclick="zoomImg(this.src)">':'<div class="thumbEmpty">📦</div>')+'</td><td>'+x.code+'</td><td>'+x.name+sz+'<div class="muted">'+(x.creator_name?'Tạo bởi '+x.creator_name:'')+'</div></td><td>'+x.unit+'</td><td><b>'+(x.has_size?'Theo size':m(Number(x.cost)))+'</b></td><td>'+(x.can_edit?'<button class="btn iconBtn" title="Sửa" onclick="editGood(\''+x.id+'\',\''+pid+'\',\''+en+'\')">✏️</button><label class="btn iconBtn" title="Đổi ảnh">🖼️<input type="file" accept="image/*" style="display:none" onchange="setGoodImg(\''+x.id+'\',\''+pid+'\',\''+en+'\',this)"></label>':'')+'</td></tr>';
       }).join('');
   document.getElementById('main').innerHTML='<div class="title">Hàng hóa · '+name+'</div><button class="btn blue iconBtn" title="Thêm hàng hóa" onclick="addGoodForm(\''+pid+'\',\''+en+'\')">＋</button><div class="orderSearch" style="margin-top:10px"><input id="goodsFind" placeholder="🔍 Tìm mã hoặc tên hàng..." oninput="filterGoods()"></div><div class="card" style="margin-top:0;overflow:auto"><table class="table"><tr><th>Ảnh</th><th>Mã</th><th>Tên</th><th>ĐVT</th><th>Giá</th><th></th></tr>'+rows+'</table></div><button class="btn iconBtn" title="Trở lại" onclick="openLiveP(\''+pid+'\',\''+en+'\')">←</button>';
 }
 function filterGoods(){let q=(document.getElementById('goodsFind')?.value||'').trim().toLowerCase();document.querySelectorAll('.goodsItem').forEach(r=>r.style.display=!q||r.dataset.find.includes(q)?'table-row':'none')}
 async function editCost(productId,oldCost,pid,name){let v=prompt('Giá vốn mới',oldCost);if(v===null)return;let n=Number(v);if(isNaN(n)||n<0)return alert('Giá không hợp lệ');let {data,error}=await SB.rpc('propose_price_change',{p_device:device(),p_product:productId,p_new_cost:n});if(error||data!=='OK')return alert(error?error.message:data);alert('Đã sửa giá vốn');liveGoods(pid,name)}
-async function editGood(id,oldName,oldUnit,oldCost,pid,partner){let n=prompt('Tên hàng',oldName);if(n===null||!n.trim())return;let u=prompt('Đơn vị tính',oldUnit)||'Cái';let v=prompt('Giá vốn',oldCost);if(v===null)return;let cost=Number(v);if(isNaN(cost)||cost<0)return alert('Giá không hợp lệ');let {data,error}=await SB.rpc('edit_pair_product',{p_device:device(),p_product:id,p_name:n,p_unit:u,p_cost:cost});if(error||data!=='OK')return alert(error?error.message:data);liveGoods(pid,partner)}
+function addEditSizeRow(name='',cost=0){
+  const box=document.getElementById('egSizeRows');
+  if(!box)return;
+  const d=document.createElement('div');
+  d.className='editSizeRow';
+  d.style.cssText='display:grid;grid-template-columns:1fr 1fr 42px;gap:8px;margin-top:8px';
+  d.innerHTML='<input class="egsn" placeholder="Size, ví dụ M" value="'+String(name).replace(/"/g,'&quot;')+'"><input class="egsp" type="number" inputmode="numeric" min="0" value="'+Number(cost||0)+'"><button type="button" class="btn iconBtn" onclick="this.parentElement.remove()">×</button>';
+  box.appendChild(d);
+}
+function toggleEditSizeBox(){
+  const on=document.getElementById('egHasSize')?.checked;
+  const box=document.getElementById('egSizeBox');
+  if(box)box.style.display=on?'block':'none';
+  if(on&&box&&!document.querySelector('.editSizeRow'))addEditSizeRow();
+}
+async function editGood(id,pid,partner){
+  const x=GOODS_CACHE[id];
+  if(!x)return alert('Không tìm thấy hàng hóa');
+  let en=String(partner).replace(/'/g,"\\'");
+  document.getElementById('main').innerHTML=
+    '<div class="title">Sửa hàng hóa · '+partner+'</div>'+
+    '<div class="card form">'+
+    '<label>Tên sản phẩm</label><input id="egn" value="'+String(x.name||'').replace(/"/g,'&quot;')+'">'+
+    '<label>Đơn vị</label><input id="egu" value="'+String(x.unit||'Cái').replace(/"/g,'&quot;')+'">'+
+    '<label>Giá</label><input id="egc" type="number" inputmode="numeric" min="0" value="'+Number(x.cost||0)+'">'+
+    '<label style="display:flex;align-items:center;gap:10px;margin-top:14px"><input id="egHasSize" type="checkbox" onchange="toggleEditSizeBox()" style="width:auto" '+(x.has_size?'checked':'')+'> Có size</label>'+
+    '<div id="egSizeBox" style="display:'+(x.has_size?'block':'none')+';margin-top:8px;padding:10px;border:1px solid #e2e5e9;border-radius:12px"><div class="muted">Mỗi size có giá riêng.</div><div id="egSizeRows"></div><button type="button" class="btn" style="margin-top:8px" onclick="addEditSizeRow()">＋ Thêm size</button></div>'+
+    '<button class="btn blue" style="width:100%;margin-top:14px" onclick="saveEditedGood(\''+id+'\',\''+pid+'\',\''+en+'\')">💾 Lưu</button></div>'+
+    '<button class="btn iconBtn" title="Trở lại" onclick="liveGoods(\''+pid+'\',\''+en+'\')">←</button>';
+  if(x.has_size&&Array.isArray(x.sizes))x.sizes.forEach(s=>addEditSizeRow(s.size_name,s.cost));
+}
+async function saveEditedGood(id,pid,partner){
+  let n=document.getElementById('egn').value.trim(),
+      u=document.getElementById('egu').value.trim()||'Cái',
+      cost=Number(document.getElementById('egc').value)||0,
+      has=!!document.getElementById('egHasSize')?.checked;
+  if(!n)return alert('Nhập tên sản phẩm');
+  let r=await SB.rpc('edit_pair_product',{p_device:device(),p_product:id,p_name:n,p_unit:u,p_cost:cost});
+  if(r.error||r.data!=='OK')return alert(r.error?r.error.message:r.data);
+  let sizes=[];
+  if(has){
+    sizes=[...document.querySelectorAll('.editSizeRow')].map(row=>({
+      size_name:(row.querySelector('.egsn')?.value||'').trim(),
+      cost:Number(row.querySelector('.egsp')?.value||0)
+    })).filter(x=>x.size_name);
+    if(!sizes.length)return alert('Nhập ít nhất 1 size');
+  }
+  r=await SB.rpc('set_product_sizes',{p_device:device(),p_product:id,p_sizes:sizes});
+  if(r.error||r.data!=='OK')return alert(r.error?r.error.message:r.data);
+  liveGoods(pid,partner);
+}
 async function opening(pid,name){return paymentHub(pid,name)}
 async function saveOpening(pid,name){let a=moneyVal(document.getElementById('obamt').value);let d=document.getElementById('obdir').value;let dt=document.getElementById('obdate').value;if(isNaN(a)||a<0||!dt)return alert('Kiểm tra số tiền và ngày');let {data,error}=await SB.rpc('set_opening_balance',{p_device:device(),p_partnership:pid,p_direction:d,p_amount:a,p_date:dt});if(error||data!=='OK')return alert(error?error.message:data);alert('Đã lưu công nợ đầu kỳ');openLiveP(pid,name)}
 async function addLiveGood(pid,name){addGoodForm(pid,name)}
 function filterOrderGoods(){let q=(document.getElementById('orderFind')?.value||'').trim().toLowerCase();document.querySelectorAll('.orderItem').forEach(r=>r.style.display=!q||r.dataset.find.includes(q)?'flex':'none')}
+function toggleOrderSizes(id){
+  const box=document.getElementById('sizes-'+id);
+  const btn=document.getElementById('sizebtn-'+id);
+  if(!box)return;
+  const open=box.style.display!=='none';
+  box.style.display=open?'none':'block';
+  if(btn)btn.textContent=open?'Chọn size':'Đóng size';
+}
 async function liveOrder(pid,name){
   document.getElementById('head').innerHTML='<div class="modalHead"><b>SỔ TAY HỢP TÁC</b><button class="xbtn" onclick="home()">×</button></div>';
   let {data,error}=await SB.rpc('list_pair_products_v2',{p_device:device(),p_partnership:pid});
   if(error)return alert(error.message);
   let en=name.replace(/'/g,"\\'"),items=(data||[]).filter(x=>x.active!==false&&!x.can_edit);
   let rows=items.map(x=>{
-    let body='';
+    let right='',sizes='';
     if(x.has_size&&Array.isArray(x.sizes)&&x.sizes.length){
-      body='<div style="width:100%;margin-top:8px">'+x.sizes.map(s=>'<div style="display:grid;grid-template-columns:1fr auto 72px;gap:8px;align-items:center;margin-top:6px"><span>Size <b>'+s.size_name+'</b></span><span>'+m(Number(s.cost))+'</span><input class="oqty" data-id="'+x.id+'" data-size="'+s.id+'" type="number" min="0" value="0" style="width:72px"></div>').join('')+'</div>';
+      right='<button id="sizebtn-'+x.id+'" class="btn" style="white-space:nowrap;padding:10px 12px" onclick="toggleOrderSizes(\''+x.id+'\')">Chọn size</button>';
+      sizes='<div id="sizes-'+x.id+'" style="display:none;margin-top:10px;border-top:1px solid #eef0f3;padding-top:6px">'+x.sizes.map(s=>'<div style="display:grid;grid-template-columns:1fr auto 72px;gap:8px;align-items:center;padding:6px 0"><span>Size <b>'+s.size_name+'</b></span><span>'+m(Number(s.cost))+'</span><input class="oqty" data-id="'+x.id+'" data-size="'+s.id+'" type="number" inputmode="numeric" min="0" value="0" style="width:72px;text-align:center"></div>').join('')+'</div>';
     }else{
-      body='<div style="display:flex;align-items:center;gap:10px"><span class="muted">'+x.unit+' · '+m(Number(x.cost))+'</span><input class="oqty" data-id="'+x.id+'" data-size="" type="number" min="0" value="0" style="width:72px"></div>';
+      right='<input class="oqty" data-id="'+x.id+'" data-size="" type="number" inputmode="numeric" min="0" value="0" style="width:72px;text-align:center">';
     }
-    return '<div class="card orderItem" data-find="'+(String(x.code)+' '+String(x.name)).toLowerCase().replace(/"/g,'&quot;')+'"><div style="display:flex;gap:10px;align-items:center">'+(x.image_data?'<img class="thumb" src="'+x.image_data+'" onclick="zoomImg(this.src)">':'<div class="thumbEmpty">📦</div>')+'<div><b>'+x.code+' · '+x.name+'</b><div class="muted">'+x.unit+'</div></div></div>'+body+'</div>';
+    return '<div class="card orderItem" data-find="'+(String(x.code)+' '+String(x.name)).toLowerCase().replace(/"/g,'&quot;')+'">'+
+      '<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center">'+
+        '<div style="display:flex;gap:10px;align-items:center;min-width:0">'+
+          (x.image_data?'<img class="thumb" src="'+x.image_data+'" onclick="zoomImg(this.src)">':'<div class="thumbEmpty">📦</div>')+
+          '<div style="min-width:0"><b>'+x.code+' · '+x.name+'</b><div class="muted">'+x.unit+(x.has_size?' · Có size':' · '+m(Number(x.cost)))+'</div></div>'+
+        '</div>'+
+        '<div style="justify-self:end">'+right+'</div>'+
+      '</div>'+sizes+
+    '</div>';
   }).join('');
-  document.getElementById('main').innerHTML='<div class="title">Đặt hàng · '+name+'</div><div class="orderSearch"><input id="orderFind" placeholder="🔍 Tìm mã hoặc tên hàng..." oninput="filterOrderGoods()"></div><div>'+ (rows||'<div class="card muted">Chưa có hàng hóa để đặt</div>') +'</div>'+(items.length?'<button class="btn green" style="width:100%" onclick="sendLiveOrder(\''+pid+'\',\''+en+'\')">Gửi đơn hàng</button>':'')+'<button class="btn iconBtn" style="margin-top:8px" title="Trở lại" onclick="openLiveP(\''+pid+'\',\''+en+'\')">←</button>';
+  document.getElementById('main').innerHTML='<div class="title">Đặt hàng · '+name+'</div><div class="orderSearch"><input id="orderFind" placeholder="🔍 Tìm mã hoặc tên hàng..." oninput="filterOrderGoods()"></div><div>'+(rows||'<div class="card muted">Chưa có hàng hóa để đặt</div>')+'</div>'+(items.length?'<button class="btn green" style="width:100%" onclick="sendLiveOrder(\''+pid+'\',\''+en+'\')">Gửi đơn hàng</button>':'')+'<button class="btn iconBtn" style="margin-top:8px" title="Trở lại" onclick="openLiveP(\''+pid+'\',\''+en+'\')">←</button>';
 }
 async function sendLiveOrder(pid,name){
   let items=[...document.querySelectorAll('.oqty')].map(i=>({
