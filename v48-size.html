@@ -114,7 +114,7 @@ function addGoodForm(pid,name){
   document.getElementById('main').innerHTML=
   '<div class="title">Thêm hàng hóa · '+name+'</div>'+
   '<div class="card form">'+
-  '<label>Hình sản phẩm</label><div style="display:flex;align-items:center;gap:9px"><div id="goodNoPic" class="thumbEmpty" style="width:72px;height:72px">📦</div><img id="goodPreview" class="addPic" style="display:none"><label class="btn iconBtn" title="Chụp ảnh">📷<input type="file" accept="image/*" capture="environment" style="display:none" onchange="pickGoodImg(this)"></label><label class="btn iconBtn" title="Chọn ảnh">🖼️<input type="file" accept="image/*" style="display:none" onchange="pickGoodImg(this)"></label></div>'+
+  '<label>Hình sản phẩm</label><div style="display:flex;align-items:center;gap:12px"><div id="goodNoPic" class="thumbEmpty" style="width:72px;height:72px">📦</div><img id="goodPreview" class="addPic" style="display:none"><label title="Chọn ảnh" style="width:58px;height:58px;border-radius:16px;background:#eef5ff;border:1px solid #cfe0ff;display:grid;place-items:center;font-size:28px;box-shadow:0 2px 6px #0001;cursor:pointer">🖼️<input type="file" accept="image/*" style="display:none" onchange="pickGoodImg(this)"></label></div>'+
   '<label>Tên sản phẩm</label><input id="agn" placeholder="Tên sản phẩm">'+
   '<label>Đơn vị</label><input id="agu" value="Cái">'+
   '<label>Giá</label><input id="agc" type="number" inputmode="numeric" value="0">'+
